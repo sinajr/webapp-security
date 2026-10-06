@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# Dependencies for the web security teaching lab.
+#
+#   python -m venv .venv
+#   source .venv/bin/activate       (Windows: .venv\Scripts\activate)
+#   pip install -r requirements.txt
+# ---------------------------------------------------------------------------
+
+Django==6.1.1
+
+
+# ---------------------------------------------------------------------------
+# DEMO 6: using a component with a known vulnerability.
+#
+# The pin below is DELIBERATE AND DELIBERATELY OUT OF DATE. PyYAML 5.3.1 has a
+# published, high-severity vulnerability: CVE-2020-14343 (PYSEC-2021-142), an
+# arbitrary-code-execution flaw in yaml.load() when it is given untrusted
+# input. It was fixed in 5.4.
+#
+# Nothing in this app imports PyYAML - it is here purely so that a dependency
+# scanner has something real and true to report. (We picked a package that is
+# NOT used by the scanner itself, so installing it does not break the scan.)
+#
+# Try it:
+#     pip install pip-audit
+#     pip-audit -r requirements.txt
+#
+# You will see the finding, the version you have, and the version that fixes
+# it. Then bump the pin to PyYAML>=5.4, reinstall, and run the scan again to
+# watch the finding disappear. In a real project this scan belongs in your CI
+# pipeline, so a newly published advisory fails the build instead of waiting
+# to be noticed.
+#
+# DO NOT COPY THIS LINE INTO A REAL PROJECT.
+PyYAML==5.3.1
+
+
+# ---------------------------------------------------------------------------
+# Used only to run demo 6's scan. Not needed to run the app itself.
+# (Left unpinned on purpose: you always want the newest vulnerability data.)
+# ---------------------------------------------------------------------------
+# pip-audit

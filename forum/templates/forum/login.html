@@ -1,0 +1,44 @@
+{% extends "forum/base.html" %}
+{% block title %}Log in{% endblock %}
+{% block content %}
+  <h1>Log in</h1>
+
+  {% if error %}<div class="note bad"><strong>{{ error }}</strong></div>{% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" value="{{ username|default:'' }}" autofocus>
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password">
+    <button type="submit">Log in</button>
+  </form>
+
+  {% if executed_sql %}
+    <h2>The SQL that was actually executed</h2>
+    <p class="muted">Shown only in vulnerable mode, so you can see what your typing did to the query.</p>
+    <pre><code>{{ executed_sql }}</code></pre>
+  {% endif %}
+
+  {% if secure_mode %}
+    <div class="note good">
+      <strong>Secure mode.</strong> This view calls Django's
+      <code>authenticate()</code>, which looks the user up through the ORM
+      (always parameterised, so injection is impossible) and compares the
+      password against a salted PBKDF2 hash. The classic payload below is
+      treated as an ordinary - and non-existent - username.
+    </div>
+  {% else %}
+    <div class="note bad">
+      <strong>Vulnerable mode.</strong> This view builds a SQL string with an
+      f-string and runs it through <code>connection.cursor()</code>, against a
+      "legacy" table that stores passwords in plain text. Try username
+      <code>' OR '1'='1' --</code> with any password.
+    </div>
+  {% endif %}
+
+  <p class="muted">
+    Demo accounts: <code>alice / alice123</code>, <code>bob / bob123</code>,
+    <code>carol / carol123</code>, <code>prof / prof123</code>.
+  </p>
+{% endblock %}

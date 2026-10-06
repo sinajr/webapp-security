@@ -1,0 +1,114 @@
+/* Plain CSS, served from this site's own URL.
+   It lives in a file rather than a <style> block on purpose: the strict
+   Content-Security-Policy used in SECURE_MODE ("style-src 'self'") refuses
+   inline styles, and we want the lab to obey its own rules. */
+
+:root {
+  --danger: #b3261e;
+  --danger-bg: #fdecea;
+  --safe: #1b5e20;
+  --safe-bg: #e8f5e9;
+  --ink: #1b1b1f;
+  --muted: #5f6368;
+  --line: #dadce0;
+  --bg: #ffffff;
+  --panel: #f7f8fa;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* ---------- the mode banner ---------- */
+.banner {
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+.banner.vulnerable { background: var(--danger); color: #fff; }
+.banner.secure     { background: var(--safe);   color: #fff; }
+.banner small { display: block; font-weight: 400; opacity: 0.9; }
+
+/* ---------- layout ---------- */
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+nav a { color: var(--ink); text-decoration: none; font-size: 0.95rem; }
+nav a:hover { text-decoration: underline; }
+nav .spacer { margin-left: auto; }
+nav .who { color: var(--muted); font-size: 0.9rem; }
+
+main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+h1 { font-size: 1.5rem; margin-top: 0; }
+h2 { font-size: 1.15rem; margin-top: 2rem; }
+h3 { font-size: 1rem; margin-bottom: 0.3rem; }
+
+/* ---------- content blocks ---------- */
+.card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: var(--bg);
+}
+.post { border-left: 3px solid var(--line); padding: 0.4rem 0 0.4rem 0.9rem; margin-bottom: 1.1rem; }
+.post .meta { color: var(--muted); font-size: 0.85rem; }
+
+.note      { border-left: 4px solid var(--muted);  background: var(--panel);     padding: 0.8rem 1rem; margin: 1rem 0; }
+.note.bad  { border-left-color: var(--danger); background: var(--danger-bg); }
+.note.good { border-left-color: var(--safe);   background: var(--safe-bg); }
+
+code, pre {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+}
+code { background: var(--panel); padding: 0.1rem 0.3rem; border-radius: 3px; }
+pre {
+  background: #1b1b1f; color: #e8eaed;
+  padding: 0.8rem 1rem; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: none; color: inherit; padding: 0; }
+
+/* ---------- forms ---------- */
+label { display: block; font-size: 0.9rem; margin-top: 0.75rem; }
+input[type=text], input[type=password], input[type=email], textarea {
+  width: 100%; padding: 0.5rem; border: 1px solid var(--line);
+  border-radius: 4px; font: inherit; margin-top: 0.2rem;
+}
+textarea { min-height: 6rem; }
+button, .button {
+  margin-top: 0.9rem; padding: 0.5rem 1rem; border: 0; border-radius: 4px;
+  background: var(--ink); color: #fff; font: inherit; cursor: pointer;
+}
+button.danger { background: var(--danger); }
+
+table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); }
+th { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+
+ul.plain { list-style: none; padding: 0; }
+ul.plain li { padding: 0.4rem 0; border-bottom: 1px solid var(--line); }
+
+.steps { padding-left: 1.2rem; }
+.steps li { margin-bottom: 0.35rem; }
+.tag {
+  display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 0.1rem 0.45rem; border-radius: 3px; vertical-align: middle;
+}
+.tag.vuln { background: var(--danger-bg); color: var(--danger); }
+.tag.fix  { background: var(--safe-bg);   color: var(--safe); }
+.muted { color: var(--muted); font-size: 0.9rem; }

@@ -1,0 +1,30 @@
+{% extends "forum/base.html" %}
+{% block title %}Messages{% endblock %}
+{% block content %}
+  <h1>Private messages</h1>
+
+  <div class="note">
+    Look at the URL of any message below: <code>/messages/<em>3</em>/</code>.
+    Demo 3 is about what happens when you change that number by hand.
+  </div>
+
+  <h2>Received</h2>
+  <ul class="plain">
+    {% for m in received %}
+      <li><a href="{% url 'message_detail' m.pk %}">#{{ m.pk }} - {{ m.subject }}</a>
+          <span class="muted">from {{ m.sender.username }}</span></li>
+    {% empty %}
+      <li class="muted">Nothing in your inbox.</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Sent</h2>
+  <ul class="plain">
+    {% for m in sent %}
+      <li><a href="{% url 'message_detail' m.pk %}">#{{ m.pk }} - {{ m.subject }}</a>
+          <span class="muted">to {{ m.recipient.username }}</span></li>
+    {% empty %}
+      <li class="muted">You have not sent anything.</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

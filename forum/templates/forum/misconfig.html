@@ -1,0 +1,80 @@
+{% extends "forum/base.html" %}
+{% block title %}Security misconfiguration{% endblock %}
+{% block content %}
+  <h1>Demo 5: security misconfiguration (<code>DEBUG = True</code>)</h1>
+
+  <p>
+    Django's debug page is one of the best debugging tools in any web framework.
+    When an unhandled exception happens and <code>DEBUG = True</code>, Django
+    replies with a page containing the full stack trace, the value of every
+    local variable in every frame, the list of installed applications, your
+    URL configuration, the request headers, the session contents and a dump of
+    your settings. That is exactly what you want on your laptop, and exactly
+    what an attacker wants on your production server.
+  </p>
+
+  <p class="muted">
+    Right now <code>DEBUG = {{ debug_mode }}</code>, because this lab ties
+    <code>DEBUG</code> to the <code>SECURE_MODE</code> switch.
+  </p>
+
+  <h2>Try it</h2>
+  <p>
+    The link below runs a view that raises an exception on purpose. That view
+    also declares two local variables called <code>secret_api_key</code> and
+    <code>database_password</code> - watch for them.
+  </p>
+  <p><a class="button" href="{% url 'misconfig_boom' %}">Trigger an unhandled error</a></p>
+
+  {% if debug_mode %}
+    <div class="note bad">
+      <strong>DEBUG is on.</strong> You will get the yellow Django error page.
+      Scroll down to "Local vars" to find the fake API key and database
+      password, then keep scrolling to the settings dump at the bottom.
+    </div>
+  {% else %}
+    <div class="note good">
+      <strong>DEBUG is off.</strong> You will get a bare
+      <code>Server Error (500)</code> page. The traceback still exists - it goes
+      to the server log and to your error-reporting tool, where only you can
+      read it.
+    </div>
+  {% endif %}
+
+  <h2>What else <code>DEBUG = False</code> turns on</h2>
+  <ul>
+    <li><code>ALLOWED_HOSTS</code> starts being enforced, which blocks
+        Host-header poisoning (poisoned password-reset links, cache poisoning).</li>
+    <li>Django stops recording every SQL query it runs in memory, which is both
+        a memory leak and an information leak.</li>
+    <li>Static files are no longer served by the development server, which
+        forces you to set up a real static-file setup instead of shipping one.</li>
+  </ul>
+
+  <h2>The deployment checklist</h2>
+  <p>
+    You do not have to remember all of this. Django ships a checker that reads
+    your settings and tells you what is wrong:
+  </p>
+  <pre><code>python manage.py check --deploy</code></pre>
+  <p>
+    Run it in both modes and compare. In vulnerable mode it will complain about
+    <code>DEBUG</code>, about the missing <code>SECURE_HSTS_SECONDS</code>, about
+    <code>SESSION_COOKIE_HTTPONLY</code> being off, and about the hard-coded
+    <code>SECRET_KEY</code>. A real deployment should produce no warnings at all
+    before it goes live.
+  </p>
+  <p class="muted">
+    A few warnings remain even in secure mode, and they are worth understanding
+    rather than silencing. The HTTPS-related ones
+    (<code>SECURE_SSL_REDIRECT</code>, <code>SECURE_HSTS_SECONDS</code>,
+    <code>SESSION_COOKIE_SECURE</code>, <code>CSRF_COOKIE_SECURE</code>) stay
+    because this lab runs over plain HTTP on localhost; on a real site served
+    over HTTPS you must switch them on, since a "secure" cookie is one the
+    browser refuses to send over an unencrypted connection. The
+    <code>SECRET_KEY</code> warning stays because we hard-coded an insecure key
+    in <code>settings.py</code> - which is itself a misconfiguration a real
+    project must not ship. A clean production run of this check should report
+    zero warnings.
+  </p>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "forum/base.html" %}
+{% block title %}{{ thread.title }}{% endblock %}
+{% block content %}
+
+  {# `thread_title` was passed through mark_safe() by the view in vulnerable #}
+  {# mode, so a <script> in a thread title runs here too.                    #}
+  <h1>{{ thread_title }}</h1>
+  <p class="muted">
+    In <a href="{% url 'course_detail' thread.course.pk %}">{{ thread.course.code }}</a>
+    &middot; started by {{ thread.created_by.username }}
+  </p>
+
+  {% if secure_mode %}
+    <div class="note good">
+      <strong>Secure mode.</strong> Post bodies below are rendered with Django's
+      default auto-escaping, so any HTML a user typed is shown as text. A strict
+      Content-Security-Policy header is also being sent - open the browser's
+      developer console to see it refuse to run any injected script.
+    </div>
+  {% else %}
+    <div class="note bad">
+      <strong>Vulnerable mode.</strong> Post bodies below are rendered with the
+      <code>|safe</code> filter, which switches off Django's auto-escaping.
+      Anything a user typed - including <code>&lt;script&gt;</code> - becomes
+      part of this page for every reader.
+    </div>
+  {% endif %}
+
+  {% for post in posts %}
+    <div class="post">
+      <div class="meta">{{ post.author.username }} &middot; {{ post.created_at|date:"j M Y, H:i" }}</div>
+
+      {# ================= DEMO 2: STORED XSS ================= #}
+      {% if secure_mode %}
+        {# ---------- SECURE ----------
+           No |safe filter. Django auto-escapes every variable it renders, so
+           < becomes &lt; and the browser shows the tag instead of running it.
+           `linebreaksbr` only turns newlines into <br>; it escapes first.
+           This is Django's DEFAULT behaviour - the secure version is simply
+           the one where we did nothing special. #}
+        <div>{{ post.body|linebreaksbr }}</div>
+      {% else %}
+        {# ---------- VULNERABLE ----------
+           BYPASS: |safe tells Django "do not escape this, it is trusted HTML".
+           The text came from a form that any student can type into, so the
+           promise is a lie. One post poisons the page for everyone who opens
+           this thread - that is what "stored" (or "persistent") XSS means. #}
+        <div>{{ post.body|safe }}</div>
+      {% endif %}
+      {# ====================================================== #}
+    </div>
+  {% empty %}
+    <p>No posts yet.</p>
+  {% endfor %}
+
+  <h2>Reply</h2>
+  <form method="post">
+    {# This form is protected normally: Django's CSRF middleware checks this
+       token on every POST. Only the profile view in demo 4 opts out. #}
+    {% csrf_token %}
+    <label for="body">Your message</label>
+    <textarea id="body" name="body" placeholder="Write a reply..."></textarea>
+    <button type="submit">Post reply</button>
+  </form>
+
+  <p class="muted">
+    Demo 2 payload to try in vulnerable mode:
+    <code>&lt;script&gt;alert(document.cookie)&lt;/script&gt;</code>
+    &mdash; see the <a href="{% url 'demos' %}#xss">demos page</a> for the full steps.
+  </p>
+{% endblock %}

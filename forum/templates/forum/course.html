@@ -1,0 +1,27 @@
+{% extends "forum/base.html" %}
+{% block title %}{{ course.code }}{% endblock %}
+{% block content %}
+  <h1>{{ course.code }} - {{ course.title }}</h1>
+  <p class="muted">Teacher: {{ course.teacher.first_name|default:course.teacher.username }}
+     &middot; {{ course.students.count }} student{{ course.students.count|pluralize }} enrolled</p>
+
+  <h2>Discussion threads</h2>
+  <ul class="plain">
+    {% for thread in threads %}
+      <li>
+        <a href="{% url 'thread_detail' thread.pk %}">{{ thread.title }}</a>
+        <span class="muted">- started by {{ thread.created_by.username }},
+          {{ thread.posts.count }} post{{ thread.posts.count|pluralize }}</span>
+      </li>
+    {% empty %}
+      <li>No threads yet.</li>
+    {% endfor %}
+  </ul>
+
+  {# Demo 3b lives at /courses/<id>/grades/ and is deliberately NOT linked #}
+  {# from here for students. Hiding the link is not a security control -   #}
+  {# that is the whole point of the demo.                                  #}
+  {% if user.profile.is_teacher %}
+    <p><a href="{% url 'course_grades' course.pk %}">Grades (teacher only)</a></p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "forum/base.html" %}
+{% block title %}Courses{% endblock %}
+{% block content %}
+  <h1>Courses</h1>
+
+  {% if not user.is_authenticated %}
+    <div class="note">
+      <p>You are not signed in. Use one of the demo accounts:
+      <code>alice / alice123</code>, <code>bob / bob123</code>,
+      <code>carol / carol123</code>, or the teacher <code>prof / prof123</code>.</p>
+      <p class="muted">Or try demo 1 and log in without a password at all.
+      Start at the <a href="{% url 'demos' %}">demos page</a>.</p>
+    </div>
+  {% endif %}
+
+  {% for course in courses %}
+    <div class="card">
+      <h3><a href="{% url 'course_detail' course.pk %}">{{ course.code }} - {{ course.title }}</a></h3>
+      <p class="muted">Taught by {{ course.teacher.first_name|default:course.teacher.username }}</p>
+    </div>
+  {% empty %}
+    <p>No courses yet. Run <code>python manage.py seed_demo</code>.</p>
+  {% endfor %}
+{% endblock %}

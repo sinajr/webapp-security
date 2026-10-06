@@ -1,0 +1,44 @@
+{% extends "forum/base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+  <h1>Your profile</h1>
+
+  {% if changed %}
+    <div class="note good">Email address updated.</div>
+  {% endif %}
+
+  <div class="card">
+    <p><strong>Username:</strong> {{ user.username }}</p>
+    <p><strong>Email:</strong> <code>{{ user.email|default:"(none)" }}</code></p>
+  </div>
+
+  <h2>Change email address</h2>
+  <form method="post">
+    {# The token is ALWAYS rendered here, in both modes - on purpose.
+       In vulnerable mode the view is @csrf_exempt, so Django never checks the
+       token that this template so carefully produced. The lesson: a token in
+       your HTML is worthless unless the server verifies it. #}
+    {% csrf_token %}
+    <label for="email">New email address</label>
+    <input type="email" id="email" name="email" value="{{ user.email }}">
+    <button type="submit">Save</button>
+  </form>
+
+  {% if secure_mode %}
+    <div class="note good">
+      <strong>Secure mode.</strong> This POST is verified by Django's CSRF
+      protection: the request must carry the secret token above, and its
+      <code>Origin</code> header must match this site. The attacker page cannot
+      read the token (the same-origin policy stops it), so its forged POST gets
+      <code>403 Forbidden</code>.
+    </div>
+  {% else %}
+    <div class="note bad">
+      <strong>Vulnerable mode.</strong> The view is decorated with
+      <code>@csrf_exempt</code>, which switches off the protection Django
+      applies to every view by default. Any other website can now change your
+      email address while you are logged in - see
+      <a href="{% url 'demos' %}#csrf">demo 4</a>.
+    </div>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,51 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CS340 Forum{% endblock %} - Web Security Lab</title>
+  {# Styles live in a real file, not an inline <style> block, so that the #}
+  {# strict Content-Security-Policy in SECURE_MODE does not block them. #}
+  <link rel="stylesheet" href="{% static 'forum/style.css' %}">
+</head>
+<body>
+
+{# ------------------------------------------------------------------ #}
+{# The mode banner: red = vulnerable code paths, green = fixed ones.   #}
+{# ------------------------------------------------------------------ #}
+{% if secure_mode %}
+  <div class="banner secure">
+    SECURE MODE - the fixed code paths are running
+    <small>Started with SECURE_MODE=1. The attacks below should now fail.</small>
+  </div>
+{% else %}
+  <div class="banner vulnerable">
+    VULNERABLE MODE - this app is deliberately insecure
+    <small>Started with SECURE_MODE=0 (the default). Teaching lab only: never expose this beyond localhost.</small>
+  </div>
+{% endif %}
+
+<nav>
+  <a href="{% url 'home' %}"><strong>CS340 Forum</strong></a>
+  <a href="{% url 'demos' %}">Demos</a>
+  {% if user.is_authenticated %}
+    <a href="{% url 'inbox' %}">Messages</a>
+    <a href="{% url 'profile' %}">Profile</a>
+  {% endif %}
+  <a href="{% url 'misconfig' %}">Misconfig</a>
+  <span class="spacer"></span>
+  {% if user.is_authenticated %}
+    <span class="who">Signed in as <strong>{{ user.username }}</strong>{% if user.profile.is_teacher %} (teacher){% endif %}</span>
+    <a href="{% url 'logout' %}">Log out</a>
+  {% else %}
+    <a href="{% url 'login' %}">Log in</a>
+  {% endif %}
+</nav>
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+</body>
+</html>

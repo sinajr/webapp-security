@@ -1,0 +1,26 @@
+{% extends "forum/base.html" %}
+{% block title %}{{ message.subject }}{% endblock %}
+{% block content %}
+  <h1>{{ message.subject }}</h1>
+  <p class="muted">
+    Message #{{ message.pk }} &middot;
+    from <strong>{{ message.sender.username }}</strong>
+    to <strong>{{ message.recipient.username }}</strong> &middot;
+    {{ message.created_at|date:"j M Y, H:i" }}
+  </p>
+
+  <div class="card">{{ message.body|linebreaksbr }}</div>
+
+  {% if message.recipient != user and message.sender != user %}
+    <div class="note bad">
+      <strong>You are reading someone else's private message.</strong>
+      You are signed in as <code>{{ user.username }}</code>, but this message is
+      between <code>{{ message.sender.username }}</code> and
+      <code>{{ message.recipient.username }}</code>. The view fetched it by id
+      alone and never asked whether it was yours. Restart the server with
+      <code>SECURE_MODE=1</code> and reload this URL.
+    </div>
+  {% endif %}
+
+  <p><a href="{% url 'inbox' %}">Back to messages</a></p>
+{% endblock %}
